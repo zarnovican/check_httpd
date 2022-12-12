@@ -106,7 +106,7 @@ async def main():
 
     web_runner = web.AppRunner(app)
     await web_runner.setup()
-    web_site = web.TCPSite(web_runner, 'localhost', 8000)
+    web_site = web.TCPSite(web_runner, '0.0.0.0', 8000)
 
     # one AIO task for web server exposing /metrics
     tasks = [ web_site.start() ]
