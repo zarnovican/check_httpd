@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime
 import logging
 import os
+import re
 import socket
 import time
 from types import SimpleNamespace
@@ -20,6 +21,11 @@ check_http_total = Counter('check_http_total', 'number of responses', ['url', 'e
 check_httpd_latency_detail_seconds_total = Counter('check_httpd_latency_detail_seconds_total', 'number of seconds spent in each stage of request/response', ['url', 'stage'])
 check_httpd_latency_seconds_total = Counter('check_httpd_latency_seconds_total', 'request/response latency', ['url'])
 
+check_httpd_latency_cloudfront_total = Counter('check_httpd_latency_cloudfront_total', 'count of successful probes per CloudFront PoP', ['url', 'cf_pop'])
+check_httpd_latency_cloudfront_seconds_total = Counter('check_httpd_latency_cloudfront_seconds_total', 'latency per CloudFront PoP', ['url', 'cf_pop'])
+check_httpd_latency_cloudfront_detail_seconds_total = Counter('check_httpd_latency_cloudfront_detail_seconds_total', 'latency per CloudFront PoP', ['url', 'cf_pop', 'stage'])
+
+RE_CF_SERVER_TIMING = re.compile(r'^([\w-]+).*dur=(\d+)')
 
 class Config():
 
@@ -112,6 +118,8 @@ async def check_http(url):
                 latency = SimpleNamespace()
                 tag_error = ''
                 tag_code = 0
+                tag_cf_pop = ''
+                tag_cf_detail = {}
                 query_start_time = datetime.utcnow().isoformat()
                 try:
                     async with session.get(url, allow_redirects=False, trace_request_ctx=latency) as resp:
@@ -119,6 +127,14 @@ async def check_http(url):
                         try:
                             resp.raise_for_status()
                             tag_code = resp.status
+
+                            if 'x-amz-cf-pop' in resp.headers:
+                                tag_cf_pop = resp.headers['x-amz-cf-pop'][:3]
+                            if 'server-timing' in resp.headers:
+                                for element in resp.headers['server-timing'].split(','):
+                                    m = RE_CF_SERVER_TIMING.match(element)
+                                    if m:
+                                        tag_cf_detail[m.group(1)] = int(m.group(2)) / 1000
 
                         except aiohttp.ClientResponseError as e:
                             tag_error = 'response'
@@ -162,6 +178,12 @@ async def check_http(url):
                 for k,v in latency.detail.items():
                     check_httpd_latency_detail_seconds_total.labels(url=url, stage=k).inc(v)
                 check_httpd_latency_seconds_total.labels(url=url).inc(latency.total)
+
+                if tag_cf_pop:
+                    check_httpd_latency_cloudfront_total.labels(url=url, cf_pop=tag_cf_pop).inc()
+                    check_httpd_latency_cloudfront_seconds_total.labels(url=url, cf_pop=tag_cf_pop).inc(latency.total)
+                    for k,v in tag_cf_detail.items():
+                        check_httpd_latency_cloudfront_detail_seconds_total.labels(url=url, cf_pop=tag_cf_pop, stage=k).inc(v)
 
                 await asyncio.sleep(1)
 
