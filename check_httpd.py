@@ -16,8 +16,8 @@ from prometheus_client import Counter, Gauge, Histogram, CONTENT_TYPE_LATEST
 import prometheus_client
 
 
-check_http_probes_total = Counter('check_http_probes_total', 'number of probe requests', ['url'])
-check_http_total = Counter('check_http_total', 'number of responses', ['url', 'error', 'code'])
+check_httpd_probes_total = Counter('check_httpd_probes_total', 'number of probe requests', ['url'])
+check_httpd_total = Counter('check_httpd_total', 'number of responses', ['url', 'error', 'code'])
 check_httpd_latency_detail_seconds_total = Counter('check_httpd_latency_detail_seconds_total', 'number of seconds spent in each stage of request/response', ['url', 'stage'])
 check_httpd_latency_seconds_total = Counter('check_httpd_latency_seconds_total', 'request/response latency', ['url'])
 
@@ -173,8 +173,8 @@ async def check_http(url):
                     tag_error = 'other'
                     logging.error('%s client error %s context %s start=%s', url, e, repr(e.__context__), query_start_time)
 
-                check_http_probes_total.labels(url=url).inc()
-                check_http_total.labels(url=url, error=tag_error, code=tag_code).inc()
+                check_httpd_probes_total.labels(url=url).inc()
+                check_httpd_total.labels(url=url, error=tag_error, code=tag_code).inc()
                 for k,v in latency.detail.items():
                     check_httpd_latency_detail_seconds_total.labels(url=url, stage=k).inc(v)
                 check_httpd_latency_seconds_total.labels(url=url).inc(latency.total)
