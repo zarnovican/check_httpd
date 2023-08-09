@@ -1,5 +1,7 @@
 # check_httpd
 
+foo
+
 Simple service to check the availability of an http interface. The service is running
 as a daemon and exporting the data as Prometheus metric. In case of error, it will
 log details of the error to stdout (eg. response body for 500 error).
